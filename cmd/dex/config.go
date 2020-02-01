@@ -37,7 +37,7 @@ type Config struct {
 
 	// StaticClients cause the server to use this list of clients rather than
 	// querying the storage. Write operations, like creating a client, will fail.
-	StaticClients []storage.Client `json:"staticClients"`
+	StaticClients []Client `json:"staticClients"`
 
 	// If enabled, the server will maintain a list of passwords which can be used
 	// to identify a user.
@@ -250,6 +250,61 @@ func (c *Connector) UnmarshalJSON(b []byte) error {
 		Config: connConfig,
 	}
 	return nil
+}
+
+// Client is a magical type that can unmarshal YAML dynamically. The
+// Type field determines the client type, which is then customized for Config.
+type Client struct {
+	ID           string   `json:"id"`
+	Secret       string   `json:"secret"`
+	RedirectURIs []string `json:"redirectURIs"`
+	TrustedPeers []string `json:"trustedPeers"`
+	Public       bool     `json:"public"`
+	Name         string   `json:"name"`
+	LogoURL      string   `json:"logoURL"`
+}
+
+// UnmarshalJSON allows Client to implement the unmarshaler interface to
+// dynamically replace env vars specified in the config.
+func (sc *Client) UnmarshalJSON(b []byte) error {
+	var cl struct {
+		ID           string   `json:"id"`
+		Secret       string   `json:"secret"`
+		RedirectURIs []string `json:"redirectURIs"`
+		TrustedPeers []string `json:"trustedPeers"`
+		Public       bool     `json:"public"`
+		Name         string   `json:"name"`
+		LogoURL      string   `json:"logoURL"`
+	}
+
+	data := []byte(os.ExpandEnv(string(b)))
+	if err := json.Unmarshal(data, &cl); err != nil {
+		return fmt.Errorf("parse client: %v", err)
+	}
+
+	*sc = Client{
+		ID:           cl.ID,
+		Secret:       cl.Secret,
+		RedirectURIs: cl.RedirectURIs,
+		TrustedPeers: cl.TrustedPeers,
+		Public:       cl.Public,
+		Name:         cl.Name,
+		LogoURL:      cl.LogoURL,
+	}
+	return nil
+}
+
+// ToStorageClient converts an object to storage client type.
+func ToStorageClient(cl Client) (storage.Client, error) {
+	return storage.Client{
+		ID:           cl.ID,
+		Secret:       cl.Secret,
+		RedirectURIs: cl.RedirectURIs,
+		TrustedPeers: cl.TrustedPeers,
+		Public:       cl.Public,
+		Name:         cl.Name,
+		LogoURL:      cl.LogoURL,
+	}, nil
 }
 
 // ToStorageConnector converts an object to storage connector type.

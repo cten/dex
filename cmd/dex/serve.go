@@ -152,12 +152,23 @@ func serve(cmd *cobra.Command, args []string) error {
 	}
 	logger.Infof("config storage: %s", c.Storage.Type)
 
-	if len(c.StaticClients) > 0 {
-		for _, client := range c.StaticClients {
-			logger.Infof("config static client: %s", client.Name)
+	storageClients := make([]storage.Client, len(c.StaticClients))
+	for i, c := range c.StaticClients {
+		if c.ID == "" || c.Name == "" {
+			return fmt.Errorf("invalid config: ID and Name fields are required for a client")
 		}
-		s = storage.WithStaticClients(s, c.StaticClients)
+		logger.Infof("config client: %s", c.ID)
+
+		// convert to a storage connector object
+		cl, err := ToStorageClient(c)
+		if err != nil {
+			return fmt.Errorf("failed to initialize static clients: %v", err)
+		}
+		storageClients[i] = cl
 	}
+
+	s = storage.WithStaticClients(s, storageClients)
+
 	if len(c.StaticPasswords) > 0 {
 		passwords := make([]storage.Password, len(c.StaticPasswords))
 		for i, p := range c.StaticPasswords {
